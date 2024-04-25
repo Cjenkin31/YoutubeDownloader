@@ -1,10 +1,11 @@
+import os
 import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, PhotoImage
 from tkinter.ttk import Progressbar, Frame, Label, Entry, Button, Style, Checkbutton
 from pytube import YouTube
 import threading
-
+from moviepy.editor import AudioFileClip
 class YouTubeDownloader:
     def __init__(self):
         self.setup_window()
@@ -106,13 +107,25 @@ class YouTubeDownloader:
                 yt = YouTube(url)
                 yt.register_on_progress_callback(self.show_progress_bar)
                 if download_as_mp3:
-                    stream = yt.streams.filter(only_audio=True).first()
+                    stream = yt.streams.filter(only_audio=True, file_extension='mp4').first()
                 else:
-                    stream = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc().first()
+                    stream = yt.streams.get_highest_resolution()
 
                 if stream:
+                    output_filename = stream.default_filename.replace('.mp4', '.mp3') if download_as_mp3 else stream.default_filename
+                    file_path = os.path.join(save_path, output_filename)
                     self.current_video_label.config(text=f"Currently Downloading [{index}/{total_videos}]: \"{yt.title}\"")
-                    stream.download(save_path)
+                    stream.download(output_path=save_path, filename=output_filename)
+
+                    if download_as_mp3:
+                        # Convert mp4 audio to mp3
+                        mp4_audio_path = os.path.join(save_path, stream.default_filename)
+                        mp3_audio_path = os.path.join(save_path, output_filename)
+                        audio_clip = AudioFileClip(mp4_audio_path)
+                        audio_clip.write_audiofile(mp3_audio_path)
+                        audio_clip.close()
+                        os.remove(mp4_audio_path)
+
                 else:
                     print(f"No suitable stream found for video: {yt.title}")
 
@@ -121,8 +134,8 @@ class YouTubeDownloader:
                 print(error_message)
                 self.current_video_label.config(text=error_message)
 
-        # After all downloads are attempted, update the label
         self.current_video_label.config(text=f"All downloads finished [{total_videos}/{total_videos}].")
+
 
     def show_progress_bar(self, stream, chunk, bytes_remaining):
         download_speed, eta_str = self.calculate_download_stats(stream, bytes_remaining)
