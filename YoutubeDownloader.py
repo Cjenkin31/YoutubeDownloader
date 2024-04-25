@@ -1,9 +1,9 @@
 import time
-import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, PhotoImage
-from tkinter.ttk import Progressbar, Frame, Label, Entry, Button, Style
+from tkinter.ttk import Progressbar, Frame, Label, Entry, Button, Style, Checkbutton
 from pytube import YouTube
+import threading
 
 class YouTubeDownloader:
     def __init__(self):
@@ -22,6 +22,7 @@ class YouTubeDownloader:
         self.setup_download_button()
         self.setup_progress_bar()
         self.setup_status_labels()
+        self.setup_mp3_option()
 
         self.window.mainloop()
 
@@ -70,6 +71,11 @@ class YouTubeDownloader:
         self.speed_label = Label(self.window, text="Speed: --")
         self.speed_label.pack()
 
+    def setup_mp3_option(self):
+        self.mp3_var = tk.BooleanVar()
+        mp3_checkbutton = Checkbutton(self.window, text="Download as MP3 (audio only)", variable=self.mp3_var)
+        mp3_checkbutton.pack()
+
     def select_path(self):
         path = filedialog.askdirectory()
         if path:
@@ -79,8 +85,8 @@ class YouTubeDownloader:
     def start_download(self):
         input_text = self.url_input.get("1.0", "end-1c").strip()
         urls = [url for url in input_text.split("\n") if url.strip()]
-
         download_path = self.path_entry.get()
+        download_as_mp3 = self.mp3_var.get()
 
         if not download_path:
             messagebox.showwarning("Warning", "Please select a download path before downloading.")
@@ -90,17 +96,20 @@ class YouTubeDownloader:
             messagebox.showwarning("Warning", "Please provide YouTube URLs.")
             return
 
-        download_thread = threading.Thread(target=self.download_videos, args=(urls, download_path))
+        download_thread = threading.Thread(target=self.download_videos, args=(urls, download_path, download_as_mp3))
         download_thread.start()
 
-    def download_videos(self, url_list, save_path):
+    def download_videos(self, url_list, save_path, download_as_mp3):
         total_videos = len(url_list)
         for index, url in enumerate(url_list, start=1):
             try:
                 yt = YouTube(url)
                 yt.register_on_progress_callback(self.show_progress_bar)
+                if download_as_mp3:
+                    stream = yt.streams.filter(only_audio=True).first()
+                else:
+                    stream = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc().first()
 
-                stream = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc().first()
                 if stream:
                     self.current_video_label.config(text=f"Currently Downloading [{index}/{total_videos}]: \"{yt.title}\"")
                     stream.download(save_path)
